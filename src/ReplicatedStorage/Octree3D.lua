@@ -3,8 +3,8 @@ local VisualizerModule = require(script.Parent.Visualizers)
 
 local Settings = {
 	MaxRegionSize = Vector3.new(1024, 1024, 1024),
-	MaxNodesPerSubRegion = 10,
-	MaxTreeDepth = 6,
+	MaxNodesPerSubRegion = 7,
+	MaxTreeDepth = 10,
 }
 
 local DivisionVectorOffsetMatrix = {
@@ -37,7 +37,7 @@ function OctreeDataPoint.New( PositionVector, NodeData, ParentSubRegion )
 		Data = NodeData,
 		ParentSubRegion = false,
 	}, OctreeDataPoint)
-	self:_SetParentSubRegion( ParentSubRegion )
+	-- self:_SetParentSubRegion( ParentSubRegion )
 	return self
 end
 
@@ -47,9 +47,9 @@ function OctreeDataPoint:GetData()
 end
 
 -- set parent subregion
-function OctreeDataPoint:_SetParentSubRegion( subregionClass )
+--[[function OctreeDataPoint:_SetParentSubRegion( subregionClass )
 	self.ParentSubRegion = setmetatable({}, subregionClass) -- prevents cyclic table issue
-end
+end]]
 
 -- get parent subregion
 function OctreeDataPoint:GetParentSubRegion()
@@ -72,7 +72,7 @@ function OctreeSubRegion.New( PositionVector, SizeVector, ParentSubRegion )
 	local self = {}
 	self.Divided = false
 	self.SubRegions = false
-	self.Depth = ParentSubRegion and ParentSubRegion.Depth or 0
+	self.Depth = ParentSubRegion and (ParentSubRegion.Depth + 1) or 1
 	self.Position = PositionVector
 	self.Size = SizeVector or Settings.MaxNodesPerSubRegion
 	self.DataPoints = {}
@@ -89,6 +89,12 @@ function OctreeSubRegion:Contains( Position )
 		Position.Y >= lowerBounds.Y and Position.Y <= upperBounds.Y and
 		Position.Z >= lowerBounds.Z and Position.Z <= upperBounds.Z
 	)
+	--[[print('Bounds Check - ', within)
+	print( lowerBounds.X, Position.X, upperBounds.X)
+	print( lowerBounds.Y, Position.Y, upperBounds.Y)
+	print( lowerBounds.Z, Position.Z, upperBounds.Z)
+	print('------------')
+	return within]]
 end
 
 -- remove the target data point from this subregion
@@ -109,21 +115,15 @@ end
 
 -- remove a batch of data points from this subregion
 function OctreeSubRegion:RemoveBatch( DataPointsList )
-	-- remove from this subregion if found
-	-- also removes unnecessary points from the points list
-	local index = 1
-	while index < #DataPointsList do
-		local dataPoint = DataPointsList[index]
+	-- remove data point
+	for _, dataPoint in ipairs( DataPointsList ) do
 		local dataPointIndex = table.find(self.DataPoints, dataPoint)
 		if dataPointIndex then
 			-- found in this list, keep it for belows' :RemoveBatch on child subregions
 			table.remove(self.DataPoints, dataPointIndex)
-			index += 1
-		else
-			-- does not exist in this subregion (and child regions); remove from list
-			table.remove(DataPointsList, dataPointIndex)
 		end
 	end
+
 	-- remove from child subregions if has divided
 	if self.Divided then
 		for _, subRegion in ipairs( self.SubRegions ) do
@@ -163,9 +163,9 @@ function OctreeSubRegion:InsertDataPoint( DataPoint )
 	-- if it contains this point, add it to this sub region
 	if self:Contains( DataPoint.Position ) then
 		table.insert(self.DataPoints, DataPoint)
-		DataPoint:_SetParentSubRegion( self )
+		--DataPoint:_SetParentSubRegion( self )
 		-- split if limit is reached
-		if #self.DataPoints == Settings.MaxNodesPerSubRegion and (self.Depth + 1) < Settings.MaxTreeDepth then
+		if #self.DataPoints >= Settings.MaxNodesPerSubRegion and (self.Depth + 1) < Settings.MaxTreeDepth then
 			self:_DivideSubRegion()
 			return -- no need to continue below, we just split them here and divided them
 		end
@@ -177,24 +177,20 @@ function OctreeSubRegion:InsertDataPoint( DataPoint )
 		end
 		return
 	end
+	self:_UpdateDividedState()
 end
 
 -- add a batch of data points to the subregion
 function OctreeSubRegion:BatchInsertDataPoints( DataPointsList )
-	-- only keep those in the list that are within this subregion
-	local index = 1
-	while index < #DataPointsList do
-		local DataPoint = DataPointsList[index]
+	-- add data points
+	for _, DataPoint in ipairs( DataPointsList ) do
 		if self:Contains( DataPoint.Position ) then
 			table.insert(self.DataPoints, DataPoint)
-			DataPoint:_SetParentSubRegion( self )
-			index += 1
-		else
-			table.remove(DataPointsList, index)
+			-- DataPoint:_SetParentSubRegion( self )
 		end
 	end
 
-	if #self.DataPoints == Settings.MaxNodesPerSubRegion and (self.Depth + 1) < Settings.MaxTreeDepth then
+	if #self.DataPoints >= Settings.MaxNodesPerSubRegion and (self.Depth + 1) < Settings.MaxTreeDepth then
 		self:_DivideSubRegion()
 		return -- no need to continue below, we just split them here and divided them
 	end
@@ -206,25 +202,26 @@ function OctreeSubRegion:BatchInsertDataPoints( DataPointsList )
 		end
 		return
 	end
+	self:_UpdateDividedState()
 end
 
 function OctreeSubRegion:Visualize( forceColor, cacheTable )
-
-	local basePart = VisualizerModule:BasePart(self.Position, false, {
-		Transparency = 0.5,
-		Color = forceColor or Color3.new(1, 0, 0),
-		Size = self.Size,
-	})
-
-	if cacheTable then
-		table.insert(cacheTable, basePart)
-	end
-
 	if self.Divided then
 		for _, subRegion in ipairs( self.SubRegions ) do
 			subRegion:Visualize(forceColor, cacheTable)
 		end
 	else
+		local basePart = VisualizerModule:BasePart(self.Position, false, {
+			Name = self.Depth,
+			Transparency = 0.85,
+			Color = forceColor or Color3.new(1, 0, 0),
+			Size = self.Size,
+		})
+
+		if cacheTable then
+			table.insert(cacheTable, basePart)
+		end
+
 		for _, dataPoint in ipairs( self.DataPoints ) do
 			dataPoint:Visualize(cacheTable)
 		end

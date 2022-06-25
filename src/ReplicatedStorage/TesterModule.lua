@@ -52,23 +52,24 @@ function Module:RunDataTest()
 
 	local randomPointsTable = {} do
 		local halfSize = ActiveOctree.Size / 2
-		local rnd = Random.new()
+		-- local rnd = Random.new(math.random())
 		for _ = 1, 1000 do
 			local position =  ActiveOctree.Position + Vector3.new(
-				rnd:NextInteger(-halfSize.X, halfSize.X),
-				rnd:NextInteger(-halfSize.Y, halfSize.Y),
-				rnd:NextInteger(-halfSize.Z, halfSize.Z)
+				math.random(-halfSize.X, halfSize.X),
+				math.random(-halfSize.Y, halfSize.Y),
+				math.random(-halfSize.Z, halfSize.Z)
 			)
-			VisualizerModule:Attachment(position, 5)
+			VisualizerModule:Attachment(position, 2)
 			table.insert(randomPointsTable, position)
 		end
 	end
 
-	task.wait(5)
+	task.wait(4)
 
-	local s = 0
+	local s = 0 -- initialize
 
 	-- test 1 - single data inserts
+	--[[
 	s = os.clock()
 	for _, position in ipairs( randomPointsTable ) do
 		ActiveOctree:Insert( position, true )
@@ -77,22 +78,25 @@ function Module:RunDataTest()
 	ActiveOctree:Visualize( Color3.fromRGB(31, 150, 230), InstanceCache )
 	-- clear
 	task.wait(3)
-	ActiveOctree:Clear()
 	ClearInstanceCache()
+	ActiveOctree:Clear()]]
+
+	-- print(string.rep('\n', 30))
 
 	-- test 2 - batch data insert
 	s = os.clock()
 	ActiveOctree:BatchInsert(randomPointsTable, true)
 	ActiveOctree:Visualize( Color3.fromRGB(126, 28, 218), InstanceCache )
 	print(os.clock() - s, #ActiveOctree.RootRegion.DataPoints)
-	task.wait(2)
-	ClearInstanceCache()
-	ActiveOctree:Clear()
+	--task.wait(2)
+	--ClearInstanceCache()
+	--ActiveOctree:Clear()
 
 	-- reset 4 (double check reset)
+	--[[
 	ClearInstanceCache()
 	ActiveOctree:Clear()
-	print(#ActiveOctree.RootRegion.DataPoints)
+	print(#ActiveOctree.RootRegion.DataPoints)]]
 end
 
 function Module:Init()
