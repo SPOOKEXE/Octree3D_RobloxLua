@@ -1,4 +1,6 @@
 
+local VisualizerModule = require(script.Parent.Visualizers)
+
 local Settings = {
 	MaxRegionSize = Vector3.new(1024, 1024, 1024),
 	MaxNodesPerSubRegion = 10,
@@ -15,10 +17,6 @@ local DivisionVectorOffsetMatrix = {
 	Vector3.new(0.25, -0.25, 0.25),
 	Vector3.new(-0.25, -0.25, 0.25),
 }
-
-local function SnapToCell(number, increment)
-	return math.floor(number / increment + 0.5)
-end
 
 local function ScaleVector3(vector1, vector2)
 	return Vector3.new(
@@ -43,15 +41,6 @@ function OctreeDataPoint.New( PositionVector, NodeData, ParentSubRegion )
 	return self
 end
 
--- remove region node
-function OctreeDataPoint:Remove()
-	if rawget(self, 'ParentSubRegion') then
-		self.ParentSubRegion:Remove(self)
-		return true
-	end
-	return false
-end
-
 -- get region node data
 function OctreeDataPoint:GetData()
 	return self.Data
@@ -67,6 +56,14 @@ function OctreeDataPoint:GetParentSubRegion()
 	return self.ParentSubRegion
 end
 
+-- visualize
+function OctreeDataPoint:Visualize( cacheTable )
+	local attachmentInstance = VisualizerModule:Attachment(self.Position, false)
+	if cacheTable then
+		table.insert(cacheTable, attachmentInstance)
+	end
+end
+
 -- // Octree Region Class // --
 local OctreeSubRegion = { ClassName = 'OctreeSubRegion' }
 OctreeSubRegion.__index = OctreeSubRegion
@@ -77,9 +74,9 @@ function OctreeSubRegion.New( PositionVector, SizeVector, ParentSubRegion )
 	self.SubRegions = false
 	self.Depth = ParentSubRegion and ParentSubRegion.Depth or 0
 	self.Position = PositionVector
-	self.SizeVector = SizeVector or Settings.MaxNodesPerSubRegion
+	self.Size = SizeVector or Settings.MaxNodesPerSubRegion
 	self.DataPoints = {}
-	self.Parent = setmetatable({}, ParentSubRegion) -- prevents cyclic table issue
+	self.Parent = ParentSubRegion and setmetatable({}, ParentSubRegion) -- prevents cyclic table issue
 	return setmetatable(self, OctreeSubRegion)
 end
 
@@ -146,6 +143,7 @@ function OctreeSubRegion:_DivideSubRegion()
 	for _, subRegion in ipairs( self.SubRegions ) do
 		subRegion:BatchInsertDataPoints( self.DataPoints )
 	end
+	self.Divided = true
 end
 
 -- check if subregion can be recombined
@@ -210,6 +208,29 @@ function OctreeSubRegion:BatchInsertDataPoints( DataPointsList )
 	end
 end
 
+function OctreeSubRegion:Visualize( forceColor, cacheTable )
+
+	local basePart = VisualizerModule:BasePart(self.Position, false, {
+		Transparency = 0.5,
+		Color = forceColor or Color3.new(1, 0, 0),
+		Size = self.Size,
+	})
+
+	if cacheTable then
+		table.insert(cacheTable, basePart)
+	end
+
+	if self.Divided then
+		for _, subRegion in ipairs( self.SubRegions ) do
+			subRegion:Visualize(forceColor, cacheTable)
+		end
+	else
+		for _, dataPoint in ipairs( self.DataPoints ) do
+			dataPoint:Visualize(cacheTable)
+		end
+	end
+end
+
 -- // Octree Class // --
 local OctreeClass = { ClassName = 'Octree3DMap' }
 OctreeClass.__index = OctreeClass
@@ -217,44 +238,57 @@ OctreeClass.__index = OctreeClass
 function OctreeClass.New(Position, Size)
 	local self = {}
 	-- self.Region3DMap = {}
-	self.Position = Position
-	self.Size = Size
-	self.RootRegion = OctreeSubRegion.New(Position, Size, false)
+	self.Position = Position or Vector3.new()
+	self.Size = Size or Settings.MaxRegionSize
+	self.RootRegion = OctreeSubRegion.New(self.Position, self.Size, false)
 	return setmetatable(self, OctreeClass)
 end
 
 -- get the furthest square bounds of the octree
 -- BoundPosition : Vector3, BoundSize : Vector3
 function OctreeClass:GetOctreeBounds()
-	
+	return self.Position, self.Size
 end
 
 -- get the nearest octree node near this position (include a max distance)
 function OctreeClass:GetNearestDataPointAtPosition( Position, maxDistance )
-	
+	-- local parentRegion = self.RootRegion
 end
 
 -- returns an octree node
 function OctreeClass:Insert( Position, Data )
 	local baseDataPoint = OctreeDataPoint.New(Position, Data)
-	self.RootRegion:Insert(baseDataPoint)
+	self.RootRegion:InsertDataPoint(baseDataPoint)
 end
 
--- does it contain the octree node
-function OctreeClass:Contains( octreeNode )
-	
+-- batch insert
+function OctreeClass:BatchInsert( PositionTable, Data )
+	local batchTable = {}
+	for _, position in ipairs( PositionTable ) do
+		table.insert(batchTable, OctreeDataPoint.New(position, Data))
+	end
+	self.RootRegion:BatchInsertDataPoints(batchTable)
 end
 
--- remove a region node from the octree
-function OctreeClass:RemoveNode( regionNode )
-	
+-- does the octree contain the data point
+function OctreeClass:ContainsDataPoint( dataPointNode )
+	return table.find(self.RootRegion.DataPoints, dataPointNode) ~= nil
+end
+
+-- remove a data point from the octree
+function OctreeClass:RemoveDataPoint( regionNode )
+	self.RootRegion:Remove(regionNode)
+end
+
+-- batch remove data points from the octree
+function OctreeClass:BatchRemoveDataPoints( dataPointsTable )
+	self.RootRegion:RemoveBatch(dataPointsTable)
 end
 
 -- clear the octree map
 function OctreeClass:Clear()
-	for _, dataPoint in ipairs( self.RootRegion.DataPoints ) do
-		dataPoint:Remove() -- tell the datapoint to remove itself from the subregion its in
-	end
+	-- set all parent subregions of data points to nil so it can be garbage collected
+	self.RootRegion:RemoveBatch(self.RootRegion.DataPoints)
 	-- release memory and let it garbage collect, make a new root subregion
 	self.RootRegion = OctreeSubRegion.New(self.Position, self.Size, false)
 end
@@ -265,6 +299,11 @@ function OctreeClass:Destroy()
 	self.Position = false
 	self.Size = false
 	setmetatable(self, nil)
+end
+
+-- visualize (debug)
+function OctreeClass:Visualize( forceColor, cacheTable )
+	self.RootRegion:Visualize( forceColor, cacheTable )
 end
 
 return OctreeClass
