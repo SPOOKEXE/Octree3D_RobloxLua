@@ -52,12 +52,12 @@ function Module:RunDataTest()
 
 	local randomPointsTable = {} do
 		local halfSize = ActiveOctree.Size / 2
-		-- local rnd = Random.new(math.random())
-		for _ = 1, 1000 do
+		local rnd = Random.new()
+		for _ = 1, 2000 do
 			local position =  ActiveOctree.Position + Vector3.new(
-				math.random(-halfSize.X, halfSize.X),
-				math.random(-halfSize.Y, halfSize.Y),
-				math.random(-halfSize.Z, halfSize.Z)
+				rnd:NextInteger(-halfSize.X, halfSize.X),
+				rnd:NextInteger(-halfSize.Y, halfSize.Y),
+				rnd:NextInteger(-halfSize.Z, halfSize.Z)
 			)
 			VisualizerModule:Attachment(position, 2)
 			table.insert(randomPointsTable, position)

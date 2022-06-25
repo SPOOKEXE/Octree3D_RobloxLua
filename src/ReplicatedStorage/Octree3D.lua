@@ -31,11 +31,11 @@ local OctreeDataPoint = { ClassName = 'OctreeDataPoint' }
 OctreeDataPoint.__index = OctreeDataPoint
 
 -- create a new position node that goes inside subregions
-function OctreeDataPoint.New( PositionVector, NodeData, ParentSubRegion )
+function OctreeDataPoint.New( PositionVector, NodeData, _ )
 	local self = setmetatable({
 		Position = PositionVector,
 		Data = NodeData,
-		ParentSubRegion = false,
+		--ParentSubRegion = false,
 	}, OctreeDataPoint)
 	-- self:_SetParentSubRegion( ParentSubRegion )
 	return self
@@ -89,12 +89,6 @@ function OctreeSubRegion:Contains( Position )
 		Position.Y >= lowerBounds.Y and Position.Y <= upperBounds.Y and
 		Position.Z >= lowerBounds.Z and Position.Z <= upperBounds.Z
 	)
-	--[[print('Bounds Check - ', within)
-	print( lowerBounds.X, Position.X, upperBounds.X)
-	print( lowerBounds.Y, Position.Y, upperBounds.Y)
-	print( lowerBounds.Z, Position.Z, upperBounds.Z)
-	print('------------')
-	return within]]
 end
 
 -- remove the target data point from this subregion
@@ -250,6 +244,7 @@ end
 -- get the nearest octree node near this position (include a max distance)
 function OctreeClass:GetNearestDataPointAtPosition( Position, maxDistance )
 	-- local parentRegion = self.RootRegion
+	warn('unimplemented')
 end
 
 -- returns an octree node
