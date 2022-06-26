@@ -80,7 +80,7 @@ function OctreeSubRegion.New( PositionVector, SizeVector, ParentSubRegion )
 	return setmetatable(self, OctreeSubRegion)
 end
 
--- does this octree subregion contain the point
+-- does this subregion contain the point
 function OctreeSubRegion:Contains( Position )
 	local lowerBounds = self.Position - (self.Size / 2)
 	local upperBounds = self.Position + (self.Size / 2)
@@ -89,6 +89,33 @@ function OctreeSubRegion:Contains( Position )
 		Position.Y >= lowerBounds.Y and Position.Y <= upperBounds.Y and
 		Position.Z >= lowerBounds.Z and Position.Z <= upperBounds.Z
 	)
+end
+
+-- does this subregion intersect another subregion
+function OctreeSubRegion:Intersects( otherSubRegion, EPSILON )
+	EPSILON = EPSILON or 0.5
+	local pos1 = self.Position
+	local pos2 = otherSubRegion.Position
+	local totalSizeMag = ((self.Size / 2) + (otherSubRegion.Size / 2)).Magnitude
+	return
+		math.abs(pos1.x-pos2.x) - totalSizeMag <= EPSILON and
+		math.abs(pos1.y-pos2.y) - totalSizeMag <= EPSILON and
+		math.abs(pos1.z-pos2.z) - totalSizeMag <= EPSILON
+end
+
+-- get all data points that are within the subregion that was passed
+function OctreeSubRegion:GetPointsInIntersectedRegion( intersectionSubRegion, arrayList )
+	if self.Divided then
+		for _, subRegion in ipairs( self.SubRegions ) do
+			subRegion:GetPointsInIntersectedRegion( intersectionSubRegion, arrayList )
+		end
+	elseif self:Intersects( intersectionSubRegion, false ) then -- false = eplison value
+		for _, dataPoint in ipairs( self.DataPoints ) do
+			if intersectionSubRegion:Contains(dataPoint.Position) then
+				table.insert(arrayList, dataPoint)
+			end
+		end
+	end
 end
 
 -- remove the target data point from this subregion
@@ -199,6 +226,18 @@ function OctreeSubRegion:BatchInsertDataPoints( DataPointsList )
 	self:_UpdateDividedState()
 end
 
+-- update all data points
+function OctreeSubRegion:UpdateDataPointRegions()
+	warn('crude implementation of UpdateDataPointRegions')
+	local clonedPoints = {}
+	for _, dataPoint in ipairs( self.DataPoints ) do
+		table.insert(clonedPoints, dataPoint)
+	end
+	self:RemoveBatch( self.DataPoints )
+	self:BatchInsertDataPoints(clonedPoints)
+	self:_UpdateDividedState()
+end
+
 function OctreeSubRegion:Visualize( forceColor, cacheTable )
 	if self.Divided then
 		for _, subRegion in ipairs( self.SubRegions ) do
@@ -207,7 +246,7 @@ function OctreeSubRegion:Visualize( forceColor, cacheTable )
 	else
 		local basePart = VisualizerModule:BasePart(self.Position, false, {
 			Name = self.Depth,
-			Transparency = 0.85,
+			Transparency = 0.95,
 			Color = forceColor or Color3.new(1, 0, 0),
 			Size = self.Size,
 		})
@@ -223,7 +262,7 @@ function OctreeSubRegion:Visualize( forceColor, cacheTable )
 end
 
 -- // Octree Class // --
-local OctreeClass = { ClassName = 'Octree3DMap' }
+local OctreeClass = { ClassName = 'Octree3DMap', SubRegionClass = OctreeSubRegion }
 OctreeClass.__index = OctreeClass
 
 function OctreeClass.New(Position, Size)
@@ -233,6 +272,11 @@ function OctreeClass.New(Position, Size)
 	self.Size = Size or Settings.MaxRegionSize
 	self.RootRegion = OctreeSubRegion.New(self.Position, self.Size, false)
 	return setmetatable(self, OctreeClass)
+end
+
+-- update all data points in octree
+function OctreeClass:UpdateOctreeDataPointRegions()
+	self.RootRegion:UpdateDataPointRegions()
 end
 
 -- get the furthest square bounds of the octree
@@ -247,10 +291,16 @@ function OctreeClass:GetNearestDataPointAtPosition( Position, maxDistance )
 	warn('unimplemented')
 end
 
+-- get all datapoints within this octree that are in the region
+function OctreeClass:GetSubRegionIntersectedDataPoints( subRegion, arrayList )
+	self.RootRegion:GetPointsInIntersectedRegion( subRegion, arrayList )
+end
+
 -- returns an octree node
 function OctreeClass:Insert( Position, Data )
 	local baseDataPoint = OctreeDataPoint.New(Position, Data)
 	self.RootRegion:InsertDataPoint(baseDataPoint)
+	return baseDataPoint
 end
 
 -- batch insert
@@ -260,6 +310,7 @@ function OctreeClass:BatchInsert( PositionTable, Data )
 		table.insert(batchTable, OctreeDataPoint.New(position, Data))
 	end
 	self.RootRegion:BatchInsertDataPoints(batchTable)
+	return batchTable
 end
 
 -- does the octree contain the data point

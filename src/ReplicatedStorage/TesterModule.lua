@@ -14,6 +14,17 @@ local function ClearInstanceCache()
 	InstanceCache = {}
 end
 
+local function GenerateRandomPoints( Position, HalfSize, ForceCount )
+	local randomPointsTable = {}
+	local rnd = Random.new()
+	for _ = 1, (ForceCount or 2000) do
+		local position = Position + Vector3.new( rnd:NextInteger(-HalfSize.X, HalfSize.X), rnd:NextInteger(-HalfSize.Y, HalfSize.Y), rnd:NextInteger(-HalfSize.Z, HalfSize.Z) )
+		VisualizerModule:Attachment(position, 2)
+		table.insert(randomPointsTable, position)
+	end
+	return randomPointsTable
+end
+
 -- // Module // --
 local Module = {}
 
@@ -50,19 +61,7 @@ end
 
 function Module:RunDataTest()
 
-	local randomPointsTable = {} do
-		local halfSize = ActiveOctree.Size / 2
-		local rnd = Random.new()
-		for _ = 1, 2000 do
-			local position =  ActiveOctree.Position + Vector3.new(
-				rnd:NextInteger(-halfSize.X, halfSize.X),
-				rnd:NextInteger(-halfSize.Y, halfSize.Y),
-				rnd:NextInteger(-halfSize.Z, halfSize.Z)
-			)
-			VisualizerModule:Attachment(position, 2)
-			table.insert(randomPointsTable, position)
-		end
-	end
+	local randomPointsTable = GenerateRandomPoints( ActiveOctree.Position, ActiveOctree.Size / 2 )
 
 	task.wait(4)
 
@@ -99,10 +98,82 @@ function Module:RunDataTest()
 	print(#ActiveOctree.RootRegion.DataPoints)]]
 end
 
+function Module:RunIntersectionTest()
+
+	local randomPointsTable = GenerateRandomPoints( ActiveOctree.Position, ActiveOctree.Size / 2 )
+	ActiveOctree:BatchInsert(randomPointsTable, true)
+
+	local regionSize = 10
+	local randomPosition = Vector3.new(0, 100, 0) + Vector3.new(
+		math.random(0, 100) - regionSize * 2,
+		math.random(0, 100) - regionSize * 2,
+		math.random(0, 100) - regionSize * 2
+	) * 0.5
+
+	local IntersectRegion = Octree3DClass.SubRegionClass.New(randomPosition, Vector3.new(regionSize, regionSize, regionSize), false)
+	local DataPointList = {}
+	ActiveOctree:Visualize( Color3.fromRGB(126, 28, 218), InstanceCache )
+
+	-- test intersection
+	ActiveOctree:GetSubRegionIntersectedDataPoints(IntersectRegion, DataPointList)
+	IntersectRegion:Visualize( Color3.new(0, 1, 0),  InstanceCache)
+	for _, dataPoint in ipairs(DataPointList) do
+		local partInstance = VisualizerModule:BasePart(dataPoint.Position, false, {
+			Color = Color3.fromRGB(255, 200, 10),
+			Size = Vector3.new(0.5, 0.5, 0.5),
+		})
+		table.insert(InstanceCache, partInstance)
+	end
+	print('Intersected Points ; ', #DataPointList)
+end
+
+function Module:RunParticleSimulationTest()
+	local Active = true
+	local ActivateBind = Instance.new('BindableEvent')
+	local DestroyBind = Instance.new('BindableEvent')
+
+	local randomPointsTable = GenerateRandomPoints( ActiveOctree.Position, ActiveOctree.Size / 2, 10 )
+	local activeDataPoints = ActiveOctree:BatchInsert( randomPointsTable, true )
+
+	ActivateBind.Event:Connect(function()
+		task.spawn(function()
+			while Active do
+				local mapSize = 100
+				local seed = math.random()
+				for _, dataPoint in ipairs( activeDataPoints ) do
+					local currentPos = dataPoint.Position
+					dataPoint.Position += Vector3.new(
+						math.noise( currentPos.X / mapSize, currentPos.X / mapSize, seed ) * 0.1,
+						math.noise( currentPos.Y / mapSize, currentPos.Y / mapSize, seed ) * 0.1,
+						math.noise( currentPos.Z / mapSize, currentPos.Z / mapSize, seed ) * 0.1
+					)
+				end
+				ActiveOctree:UpdateOctreeDataPointRegions()
+				ActiveOctree:Visualize( Color3.fromRGB(126, 28, 218), InstanceCache )
+				task.wait(0.2)
+				ClearInstanceCache()
+			end
+		end)
+	end)
+
+	DestroyBind.Event:Connect(function()
+		ActivateBind:Destroy()
+		DestroyBind:Destroy()
+		Active = false
+	end)
+
+	return ActivateBind, DestroyBind
+end
+
 function Module:Init()
 	ActiveOctree = Octree3DClass.New(Vector3.new(0, 100, 0), Vector3.new(100, 100, 100), false)
 	-- Module:RunVisualTests()
-	Module:RunDataTest()
+	-- Module:RunDataTest()
+	-- Module:RunIntersectionTest()
+	local Activate, Destroy = Module:RunParticleSimulationTest()
+	Activate:Fire()
+	task.wait(10)
+	Destroy:Fire()
 end
 
 return Module
