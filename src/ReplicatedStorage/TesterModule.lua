@@ -132,8 +132,25 @@ function Module:RunParticleSimulationTest()
 	local ActivateBind = Instance.new('BindableEvent')
 	local DestroyBind = Instance.new('BindableEvent')
 
-	local randomPointsTable = GenerateRandomPoints( ActiveOctree.Position, ActiveOctree.Size / 2, 50 )
+	local randomPointsTable = GenerateRandomPoints( ActiveOctree.Position, ActiveOctree.Size / 2, 500 )
 	local activeDataPoints = ActiveOctree:BatchInsert( randomPointsTable, true )
+
+	local function VisualizeSubRegionHits( RegionPosition, RegionSize )
+
+		local subregionArea = Octree3DClass.SubRegionClass.New(RegionPosition, RegionSize, false)
+		subregionArea:Visualize(Color3.new(1, 1, 0), InstanceCache)
+		local hitDataPoints = {}
+		ActiveOctree:GetSubRegionIntersectedDataPoints( subregionArea, hitDataPoints )
+		for _, DataPoint in ipairs( hitDataPoints ) do
+			local BasePartVisual = VisualizerModule:BasePart(DataPoint.Position, false, {
+				Size = Vector3.new(1, 1, 1),
+				Color = Color3.new(1, 0, 0),
+				Transparency = 0.2,
+			})
+			table.insert(InstanceCache, BasePartVisual)
+		end
+
+	end
 
 	ActivateBind.Event:Connect(function()
 		task.spawn(function()
@@ -143,13 +160,14 @@ function Module:RunParticleSimulationTest()
 				for _, dataPoint in ipairs( activeDataPoints ) do
 					local currentPos = dataPoint.Position
 					dataPoint.Position += Vector3.new(
-						math.noise( currentPos.X / mapSize, currentPos.X / mapSize, seed ) * 0.3,
-						math.noise( currentPos.Y / mapSize, currentPos.Y / mapSize, seed ) * 0.3,
-						math.noise( currentPos.Z / mapSize, currentPos.Z / mapSize, seed ) * 0.3
+						math.noise( currentPos.X / mapSize, currentPos.X / mapSize, seed ) * 1,
+						math.noise( currentPos.Y / mapSize, currentPos.Y / mapSize, seed ) * 1,
+						math.noise( currentPos.Z / mapSize, currentPos.Z / mapSize, seed ) * 1
 					)
 				end
 				ActiveOctree:UpdateOctreeDataPointRegions()
 				ActiveOctree:Visualize( Color3.fromRGB(126, 28, 218), InstanceCache )
+				VisualizeSubRegionHits( ActiveOctree.Position, ActiveOctree.Size / 4 )
 				task.wait(0.2)
 				ClearInstanceCache()
 			end
@@ -168,12 +186,16 @@ end
 function Module:Init()
 	ActiveOctree = Octree3DClass.New(Vector3.new(0, 100, 0), Vector3.new(100, 100, 100), false)
 	-- Module:RunVisualTests()
+
 	-- Module:RunDataTest()
+
 	-- Module:RunIntersectionTest()
+
+	--[[
 	local Activate, Destroy = Module:RunParticleSimulationTest()
 	Activate:Fire()
-	task.wait(10)
-	Destroy:Fire()
+	task.wait(30)
+	Destroy:Fire()]]
 end
 
 return Module

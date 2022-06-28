@@ -3,8 +3,8 @@ local VisualizerModule = require(script.Parent.Visualizers)
 
 local Settings = {
 	MaxRegionSize = Vector3.new(1024, 1024, 1024),
-	MaxNodesPerSubRegion = 4,
-	MaxTreeDepth = 8,
+	MaxNodesPerSubRegion = 6,
+	MaxTreeDepth = 7,
 }
 
 local DivisionVectorOffsetMatrix = {
@@ -93,7 +93,7 @@ end
 
 -- does this subregion intersect another subregion
 function OctreeSubRegion:Intersects( otherSubRegion, EPSILON )
-	EPSILON = EPSILON or 0.5
+	EPSILON = EPSILON or 0.1
 	local pos1 = self.Position
 	local pos2 = otherSubRegion.Position
 	local totalSizeMag = ((self.Size / 2) + (otherSubRegion.Size / 2)).Magnitude
@@ -239,7 +239,6 @@ end
 
 -- update all data points
 function OctreeSubRegion:UpdateDataPointRegions()
-	warn('crude implementation of UpdateDataPointRegions')
 	local clonedPoints = {}
 	for _, dataPoint in ipairs( self.DataPoints ) do
 		table.insert(clonedPoints, dataPoint)
@@ -296,12 +295,6 @@ end
 -- BoundPosition : Vector3, BoundSize : Vector3
 function OctreeClass:GetOctreeBounds()
 	return self.Position, self.Size
-end
-
--- get the nearest octree node near this position (include a max distance)
-function OctreeClass:GetNearestDataPointAtPosition( Position, maxDistance )
-	-- local parentRegion = self.RootRegion
-	warn('unimplemented')
 end
 
 -- get all datapoints within this octree that are in the region
