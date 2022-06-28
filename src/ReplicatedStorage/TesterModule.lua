@@ -132,7 +132,7 @@ function Module:RunParticleSimulationTest()
 	local ActivateBind = Instance.new('BindableEvent')
 	local DestroyBind = Instance.new('BindableEvent')
 
-	local randomPointsTable = GenerateRandomPoints( ActiveOctree.Position, ActiveOctree.Size / 2, 10 )
+	local randomPointsTable = GenerateRandomPoints( ActiveOctree.Position, ActiveOctree.Size / 2, 50 )
 	local activeDataPoints = ActiveOctree:BatchInsert( randomPointsTable, true )
 
 	ActivateBind.Event:Connect(function()
@@ -143,9 +143,9 @@ function Module:RunParticleSimulationTest()
 				for _, dataPoint in ipairs( activeDataPoints ) do
 					local currentPos = dataPoint.Position
 					dataPoint.Position += Vector3.new(
-						math.noise( currentPos.X / mapSize, currentPos.X / mapSize, seed ) * 0.1,
-						math.noise( currentPos.Y / mapSize, currentPos.Y / mapSize, seed ) * 0.1,
-						math.noise( currentPos.Z / mapSize, currentPos.Z / mapSize, seed ) * 0.1
+						math.noise( currentPos.X / mapSize, currentPos.X / mapSize, seed ) * 0.3,
+						math.noise( currentPos.Y / mapSize, currentPos.Y / mapSize, seed ) * 0.3,
+						math.noise( currentPos.Z / mapSize, currentPos.Z / mapSize, seed ) * 0.3
 					)
 				end
 				ActiveOctree:UpdateOctreeDataPointRegions()

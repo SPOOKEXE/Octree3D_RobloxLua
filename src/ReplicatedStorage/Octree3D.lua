@@ -3,8 +3,8 @@ local VisualizerModule = require(script.Parent.Visualizers)
 
 local Settings = {
 	MaxRegionSize = Vector3.new(1024, 1024, 1024),
-	MaxNodesPerSubRegion = 7,
-	MaxTreeDepth = 10,
+	MaxNodesPerSubRegion = 4,
+	MaxTreeDepth = 8,
 }
 
 local DivisionVectorOffsetMatrix = {
@@ -139,8 +139,9 @@ function OctreeSubRegion:RemoveBatch( DataPointsList )
 	-- remove data point
 	for _, dataPoint in ipairs( DataPointsList ) do
 		local dataPointIndex = table.find(self.DataPoints, dataPoint)
+		-- print(dataPointIndex)
 		if dataPointIndex then
-			-- found in this list, keep it for belows' :RemoveBatch on child subregions
+			-- found in this list, remove
 			table.remove(self.DataPoints, dataPointIndex)
 		end
 	end
@@ -169,13 +170,22 @@ end
 
 -- check if subregion can be recombined
 function OctreeSubRegion:_UpdateDividedState()
-	if self.Divided and #self.DataPoints < Settings.MaxNodesPerSubRegion then
+	local hasReachedLimit = #self.DataPoints >= Settings.MaxNodesPerSubRegion
+	if self.Divided then
 		for _, subRegion in ipairs( self.SubRegions ) do
-			subRegion:_UpdateDividedState() -- update the lower region before this one
-			subRegion.Parent = nil
+			if hasReachedLimit then
+				-- print('update depth ; ', self.Depth)
+				subRegion:_UpdateDividedState() -- update the lower region before this one
+			else
+				-- print('under limit, set subregion parent to nil')
+				subRegion.Parent = nil
+			end
 		end
-		self.Divided = false
-		self.SubRegions = false -- since the data is no longer cached, clears memory
+		if not hasReachedLimit then
+			-- print('under limit, remove subregion and undivide')
+			self.Divided = false
+			self.SubRegions = false -- since the data is no longer cached, clears memory
+		end
 	end
 end
 
@@ -205,7 +215,7 @@ end
 function OctreeSubRegion:BatchInsertDataPoints( DataPointsList )
 	-- add data points
 	for _, DataPoint in ipairs( DataPointsList ) do
-		if self:Contains( DataPoint.Position ) then
+		if self:Contains( DataPoint.Position ) and not table.find(self.DataPoints, DataPoint) then
 			table.insert(self.DataPoints, DataPoint)
 			-- DataPoint:_SetParentSubRegion( self )
 		end
@@ -223,6 +233,7 @@ function OctreeSubRegion:BatchInsertDataPoints( DataPointsList )
 		end
 		return
 	end
+
 	self:_UpdateDividedState()
 end
 
@@ -234,7 +245,9 @@ function OctreeSubRegion:UpdateDataPointRegions()
 		table.insert(clonedPoints, dataPoint)
 	end
 	self:RemoveBatch( self.DataPoints )
+	-- print(#self.DataPoints)
 	self:BatchInsertDataPoints(clonedPoints)
+	-- print(#self.DataPoints)
 	self:_UpdateDividedState()
 end
 
